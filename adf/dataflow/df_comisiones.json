@@ -19,13 +19,24 @@
 					"name": "srcComision"
 				}
 			],
-			"sinks": [],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "ds_parquet_output",
+						"type": "DatasetReference"
+					},
+					"name": "sinkOutput"
+				}
+			],
 			"transformations": [
 				{
 					"name": "joinComision"
 				},
 				{
 					"name": "selectColumnas"
+				},
+				{
+					"name": "calcSalarioTotal"
 				}
 			],
 			"scriptLines": [
@@ -70,7 +81,18 @@
 				"          comision = {Comisión}",
 				"     ),",
 				"     skipDuplicateMapInputs: true,",
-				"     skipDuplicateMapOutputs: true) ~> selectColumnas"
+				"     skipDuplicateMapOutputs: true) ~> selectColumnas",
+				"selectColumnas derive(salario_total = toDecimal(mnt_salario, 18, 2) + toDecimal(comision, 18, 2)) ~> calcSalarioTotal",
+				"calcSalarioTotal sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'parquet',",
+				"     partitionFileNames:['empleado_comision.parquet'],",
+				"     umask: 0022,",
+				"     preCommands: [],",
+				"     postCommands: [],",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     partitionBy('hash', 1)) ~> sinkOutput"
 			]
 		}
 	}
