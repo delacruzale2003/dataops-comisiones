@@ -5,3 +5,5 @@ _unzipped_sql/
 *.pyc
 __pycache__/
 .env
+Entrega/
+docs/

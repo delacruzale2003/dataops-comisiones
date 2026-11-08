@@ -27,8 +27,6 @@ Recursos de ADF: pipeline `PL_Comisiones`, data flow `df_comisiones`, linked ser
 | `tests/validate_csv.py` | Prueba de calidad del CSV (se ejecuta en CI) |
 | `tests/validate_output.py` | Prueba del Parquet de salida (`salario_total` correcto) |
 | `data/` | CSV de ejemplo y Parquet generado |
-| `docs/Informe_Final.docx` | Informe final con evidencias y registro de pruebas |
-| `Entrega/` | Capturas de pantalla y logs de evidencia |
 | `azure-pipelines.yml` | Equivalente para Azure Pipelines (referencia; no se ejecuto, el CI/CD real usa GitHub Actions) |
 
 ## Flujo de trabajo Git
