@@ -20,7 +20,15 @@
 		},
 		"schema": [
 			{
-				"name": "empleado_id;Nombre y Apellido;Comisión",
+				"name": "empleado_id",
+				"type": "String"
+			},
+			{
+				"name": "Nombre y Apellido",
+				"type": "String"
+			},
+			{
+				"name": "Comisión",
 				"type": "String"
 			}
 		]
