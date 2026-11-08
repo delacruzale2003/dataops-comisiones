@@ -1,0 +1,124 @@
+# CI/CD de Azure Data Factory con GitHub Actions: CI -> Dev -> Test (aprobacion) -> Prod (aprobacion)
+name: ADF CI-CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DEV_FACTORY: adf-dataops-dev-aledc
+  ADF_ROOT: adf
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  ci:
+    name: CI - Validar y generar plantilla ARM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Prueba de calidad del CSV
+        run: |
+          pip install pandas pyarrow
+          python tests/validate_csv.py data/ComisionEmpleados_V1_202610.csv
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Instalar azure-data-factory-utilities
+        run: npm install
+
+      - name: Login a Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Validar recursos de ADF
+        run: npm run build validate ${{ github.workspace }}/${{ env.ADF_ROOT }} /subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/rg-dataops-dev/providers/Microsoft.DataFactory/factories/${{ env.DEV_FACTORY }}
+
+      - name: Generar plantilla ARM
+        run: npm run build export ${{ github.workspace }}/${{ env.ADF_ROOT }} /subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/rg-dataops-dev/providers/Microsoft.DataFactory/factories/${{ env.DEV_FACTORY }} "ArmTemplate"
+
+      - name: Publicar artefacto ARM
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArmTemplates
+          path: ArmTemplate
+
+  deploy-dev:
+    name: CD - Desarrollo
+    needs: ci
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ArmTemplates
+          path: ArmTemplate
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Desplegar ADF en DEV
+        uses: azure/arm-deploy@v2
+        with:
+          subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          resourceGroupName: rg-dataops-dev
+          template: ArmTemplate/ARMTemplateForFactory.json
+          parameters: ArmTemplate/ARMTemplateParametersForFactory.json factoryName=adf-dataops-dev-aledc
+          deploymentMode: Incremental
+
+  deploy-test:
+    name: CD - Prueba
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ArmTemplates
+          path: ArmTemplate
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Desplegar ADF en TEST
+        uses: azure/arm-deploy@v2
+        with:
+          subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          resourceGroupName: rg-dataops-test
+          template: ArmTemplate/ARMTemplateForFactory.json
+          parameters: ArmTemplate/ARMTemplateParametersForFactory.json factoryName=adf-dataops-test-aledc
+          deploymentMode: Incremental
+
+  deploy-prod:
+    name: CD - Produccion
+    needs: deploy-test
+    runs-on: ubuntu-latest
+    environment: prod   # requiere aprobacion manual (Required reviewers)
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ArmTemplates
+          path: ArmTemplate
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Desplegar ADF en PROD
+        uses: azure/arm-deploy@v2
+        with:
+          subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          resourceGroupName: rg-dataops-prod
+          template: ArmTemplate/ARMTemplateForFactory.json
+          parameters: ArmTemplate/ARMTemplateParametersForFactory.json factoryName=adf-dataops-prod-aledc
+          deploymentMode: Incremental
