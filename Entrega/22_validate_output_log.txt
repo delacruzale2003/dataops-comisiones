@@ -1,0 +1,12 @@
+OK: 33 filas, salario_total = mnt_salario + comision en todas
+   empleado_id nom_empleado ape_empleado              mnt_salario comision salario_total
+0            1          Ana        Pérez  1800.000000000000000000     9000      10800.00
+1            2       Carlos        López  2500.500000000000000000     8250      10750.50
+2            3        Sofía     Martínez  2200.750000000000000000    10500      12700.75
+3            5        Elena    Rodríguez  2000.200000000000000000     9750      11750.20
+4            9    Valentina         Ruiz  4200.500000000000000000    10200      14400.50
+5           10    Sebastián       Castro  1950.400000000000000000     9000      10950.40
+6           11      Luciana       Flores  1850.100000000000000000    10800      12650.10
+7           12       Andrés         Soto  2550.600000000000000000    10350      12900.60
+8           13      Mariana        Rojas  2250.300000000000000000    11700      13950.30
+9           14        Diego         Luna  4100.700000000000000000     9750      13850.70
