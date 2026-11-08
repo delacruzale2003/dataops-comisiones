@@ -1,0 +1,58 @@
+{
+	"name": "df_comisiones",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "ds_parquet_staging",
+						"type": "DatasetReference"
+					},
+					"name": "srcEmpleado"
+				},
+				{
+					"dataset": {
+						"referenceName": "ds_csv_comision",
+						"type": "DatasetReference"
+					},
+					"name": "srcComision"
+				}
+			],
+			"sinks": [],
+			"transformations": [
+				{
+					"name": "joinComision"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          empleado_id as integer,",
+				"          tip_documento as string,",
+				"          num_documento as string,",
+				"          nom_empleado as string,",
+				"          ape_empleado as string,",
+				"          cod_cargo as string,",
+				"          cod_departamento as string,",
+				"          mnt_salario as decimal(38,18),",
+				"          mnt_tope_comision as decimal(38,18)",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false,",
+				"     format: 'parquet') ~> srcEmpleado",
+				"source(output(",
+				"          {empleado_id;Nombre y Apellido;Comisión} as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false) ~> srcComision",
+				"srcEmpleado, srcComision join(empleado_id == {empleado_id;Nombre y Apellido;Comisión},",
+				"     joinType:'inner',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> joinComision"
+			]
+		}
+	}
+}
