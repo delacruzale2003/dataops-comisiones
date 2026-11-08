@@ -1,0 +1,33 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "factoryName": {
+            "value": "adf-dataops-dev-aledc"
+        },
+        "LS_DataLake_accountKey": {
+            "value": ""
+        },
+        "LS_Postgres_password": {
+            "value": ""
+        },
+        "LS_DataLake_properties_typeProperties_url": {
+            "value": "https://stdataopsale023.dfs.core.windows.net/"
+        },
+        "LS_Postgres_properties_typeProperties_server": {
+            "value": "mgg.vps.webdock.cloud"
+        },
+        "LS_Postgres_properties_typeProperties_database": {
+            "value": "dmc"
+        },
+        "LS_Postgres_properties_typeProperties_username": {
+            "value": "usr_ro_dmc_rrhh_estudiantes"
+        },
+        "containerUri": {
+            "value": ""
+        },
+        "containerSasToken": {
+            "value": ""
+        }
+    }
+}

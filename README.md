@@ -23,6 +23,7 @@ Recursos de ADF: pipeline `PL_Comisiones`, data flow `df_comisiones`, linked ser
 |------|-------------|
 | `adf/` | Recursos de ADF (pipeline, dataflow, datasets, linked services) generados por la integracion Git de ADF |
 | `.github/workflows/ci-cd.yml` | CI (pruebas + validacion + plantilla ARM) y CD (Dev -> Test -> Prod con aprobacion) |
+| `arm-template/` | Plantilla ARM generada por el CI (`ARMTemplateForFactory.json` y parametros). Los secretos van vacios; se reconfiguran por entorno |
 | `parameters/` | Parametros ARM por entorno (`dev`, `test`, `prod`) |
 | `tests/validate_csv.py` | Prueba de calidad del CSV (se ejecuta en CI) |
 | `tests/validate_output.py` | Prueba del Parquet de salida (`salario_total` correcto) |

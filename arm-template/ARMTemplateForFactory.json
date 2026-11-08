@@ -1,0 +1,403 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "factoryName": {
+            "type": "string",
+            "metadata": "Data Factory name",
+            "defaultValue": "adf-dataops-dev-aledc"
+        },
+        "LS_DataLake_accountKey": {
+            "type": "secureString",
+            "metadata": "Secure string for 'accountKey' of 'LS_DataLake'"
+        },
+        "LS_Postgres_password": {
+            "type": "secureString",
+            "metadata": "Secure string for 'password' of 'LS_Postgres'"
+        },
+        "LS_DataLake_properties_typeProperties_url": {
+            "type": "string",
+            "defaultValue": "https://stdataopsale023.dfs.core.windows.net/"
+        },
+        "LS_Postgres_properties_typeProperties_server": {
+            "type": "string",
+            "defaultValue": "mgg.vps.webdock.cloud"
+        },
+        "LS_Postgres_properties_typeProperties_database": {
+            "type": "string",
+            "defaultValue": "dmc"
+        },
+        "LS_Postgres_properties_typeProperties_username": {
+            "type": "string",
+            "defaultValue": "usr_ro_dmc_rrhh_estudiantes"
+        }
+    },
+    "variables": {
+        "factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+    },
+    "resources": [
+        {
+            "name": "[concat(parameters('factoryName'), '/PL_Comisiones')]",
+            "type": "Microsoft.DataFactory/factories/pipelines",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "activities": [
+                    {
+                        "name": "Copy_Empleado_a_Staging",
+                        "type": "Copy",
+                        "dependsOn": [],
+                        "policy": {
+                            "timeout": "0.12:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "PostgreSqlV2Source",
+                                "queryTimeout": "02:00:00"
+                            },
+                            "sink": {
+                                "type": "ParquetSink",
+                                "storeSettings": {
+                                    "type": "AzureBlobFSWriteSettings"
+                                },
+                                "formatSettings": {
+                                    "type": "ParquetWriteSettings"
+                                }
+                            },
+                            "enableStaging": false,
+                            "translator": {
+                                "type": "TabularTranslator",
+                                "typeConversion": true,
+                                "typeConversionSettings": {
+                                    "allowDataTruncation": true,
+                                    "treatBooleanAsNumber": false
+                                }
+                            }
+                        },
+                        "inputs": [
+                            {
+                                "referenceName": "ds_pg_empleado",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ],
+                        "outputs": [
+                            {
+                                "referenceName": "ds_parquet_staging",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ]
+                    },
+                    {
+                        "name": "DF_Join_Comisiones",
+                        "type": "ExecuteDataFlow",
+                        "dependsOn": [
+                            {
+                                "activity": "Copy_Empleado_a_Staging",
+                                "dependencyConditions": [
+                                    "Completed"
+                                ]
+                            }
+                        ],
+                        "policy": {
+                            "timeout": "0.12:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "dataflow": {
+                                "referenceName": "df_comisiones",
+                                "type": "DataFlowReference",
+                                "parameters": {},
+                                "datasetParameters": {
+                                    "srcEmpleado": {},
+                                    "srcComision": {},
+                                    "sinkOutput": {}
+                                }
+                            },
+                            "staging": {},
+                            "compute": {
+                                "coreCount": 8,
+                                "computeType": "General"
+                            },
+                            "traceLevel": "Fine"
+                        }
+                    }
+                ],
+                "policy": {
+                    "elapsedTimeMetric": {}
+                },
+                "annotations": []
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/datasets/ds_pg_empleado')]",
+                "[concat(variables('factoryId'), '/datasets/ds_parquet_staging')]",
+                "[concat(variables('factoryId'), '/dataflows/df_comisiones')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_csv_comision')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "LS_DataLake",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "DelimitedText",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "fileName": "ComisionEmpleados_V1_202610.csv",
+                        "fileSystem": "input"
+                    },
+                    "columnDelimiter": ";",
+                    "escapeChar": "\\",
+                    "firstRowAsHeader": true,
+                    "quoteChar": "\""
+                },
+                "schema": [
+                    {
+                        "name": "empleado_id",
+                        "type": "String"
+                    },
+                    {
+                        "name": "Nombre y Apellido",
+                        "type": "String"
+                    },
+                    {
+                        "name": "Comisión",
+                        "type": "String"
+                    }
+                ]
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/LS_DataLake')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_parquet_output')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "LS_DataLake",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "Parquet",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "fileSystem": "output"
+                    },
+                    "compressionCodec": "snappy"
+                },
+                "schema": []
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/LS_DataLake')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_parquet_staging')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "LS_DataLake",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "Parquet",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "fileName": "empleado.parquet",
+                        "fileSystem": "staging"
+                    },
+                    "compressionCodec": "snappy"
+                },
+                "schema": []
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/LS_DataLake')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_pg_empleado')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "LS_Postgres",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "PostgreSqlV2Table",
+                "schema": [],
+                "typeProperties": {
+                    "schema": "rrhh",
+                    "table": "empleado"
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/LS_Postgres')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/LS_DataLake')]",
+            "type": "Microsoft.DataFactory/factories/linkedServices",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "annotations": [],
+                "type": "AzureBlobFS",
+                "typeProperties": {
+                    "url": "[parameters('LS_DataLake_properties_typeProperties_url')]",
+                    "accountKey": {
+                        "type": "SecureString",
+                        "value": "[parameters('LS_DataLake_accountKey')]"
+                    }
+                }
+            },
+            "dependsOn": []
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/LS_Postgres')]",
+            "type": "Microsoft.DataFactory/factories/linkedServices",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "annotations": [],
+                "type": "PostgreSqlV2",
+                "typeProperties": {
+                    "server": "[parameters('LS_Postgres_properties_typeProperties_server')]",
+                    "port": 5432,
+                    "database": "[parameters('LS_Postgres_properties_typeProperties_database')]",
+                    "username": "[parameters('LS_Postgres_properties_typeProperties_username')]",
+                    "password": {
+                        "type": "SecureString",
+                        "value": "[parameters('LS_Postgres_password')]"
+                    },
+                    "sslMode": 2,
+                    "authenticationType": "Basic"
+                }
+            },
+            "dependsOn": []
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/df_comisiones')]",
+            "type": "Microsoft.DataFactory/factories/dataflows",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "type": "MappingDataFlow",
+                "typeProperties": {
+                    "sources": [
+                        {
+                            "dataset": {
+                                "referenceName": "ds_parquet_staging",
+                                "type": "DatasetReference"
+                            },
+                            "name": "srcEmpleado"
+                        },
+                        {
+                            "dataset": {
+                                "referenceName": "ds_csv_comision",
+                                "type": "DatasetReference"
+                            },
+                            "name": "srcComision"
+                        }
+                    ],
+                    "sinks": [
+                        {
+                            "dataset": {
+                                "referenceName": "ds_parquet_output",
+                                "type": "DatasetReference"
+                            },
+                            "name": "sinkOutput"
+                        }
+                    ],
+                    "transformations": [
+                        {
+                            "name": "joinComision"
+                        },
+                        {
+                            "name": "selectColumnas"
+                        },
+                        {
+                            "name": "calcSalarioTotal"
+                        }
+                    ],
+                    "scriptLines": [
+                        "source(output(",
+                        "          empleado_id as integer,",
+                        "          tip_documento as string,",
+                        "          num_documento as string,",
+                        "          nom_empleado as string,",
+                        "          ape_empleado as string,",
+                        "          cod_cargo as string,",
+                        "          cod_departamento as string,",
+                        "          mnt_salario as decimal(38,18),",
+                        "          mnt_tope_comision as decimal(38,18)",
+                        "     ),",
+                        "     allowSchemaDrift: true,",
+                        "     validateSchema: false,",
+                        "     ignoreNoFilesFound: false,",
+                        "     format: 'parquet') ~> srcEmpleado",
+                        "source(output(",
+                        "          empleado_id as integer,",
+                        "          {Nombre y Apellido} as string,",
+                        "          {Comisión} as string",
+                        "     ),",
+                        "     allowSchemaDrift: true,",
+                        "     validateSchema: false,",
+                        "     ignoreNoFilesFound: false) ~> srcComision",
+                        "srcEmpleado, srcComision join(srcEmpleado@empleado_id == srcComision@empleado_id,",
+                        "     joinType:'inner',",
+                        "     matchType:'exact',",
+                        "     ignoreSpaces: false,",
+                        "     broadcast: 'auto')~> joinComision",
+                        "joinComision select(mapColumn(",
+                        "          empleado_id = srcEmpleado@empleado_id,",
+                        "          tip_documento,",
+                        "          num_documento,",
+                        "          nom_empleado,",
+                        "          ape_empleado,",
+                        "          cod_cargo,",
+                        "          cod_departamento,",
+                        "          mnt_salario,",
+                        "          mnt_tope_comision,",
+                        "          comision = {Comisión}",
+                        "     ),",
+                        "     skipDuplicateMapInputs: true,",
+                        "     skipDuplicateMapOutputs: true) ~> selectColumnas",
+                        "selectColumnas derive(salario_total = toDecimal(mnt_salario, 18, 2) + toDecimal(comision, 18, 2)) ~> calcSalarioTotal",
+                        "calcSalarioTotal sink(allowSchemaDrift: true,",
+                        "     validateSchema: false,",
+                        "     format: 'parquet',",
+                        "     partitionFileNames:['empleado_comision.parquet'],",
+                        "     umask: 0022,",
+                        "     preCommands: [],",
+                        "     postCommands: [],",
+                        "     skipDuplicateMapInputs: true,",
+                        "     skipDuplicateMapOutputs: true,",
+                        "     partitionBy('hash', 1)) ~> sinkOutput"
+                    ]
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/datasets/ds_parquet_staging')]",
+                "[concat(variables('factoryId'), '/datasets/ds_csv_comision')]",
+                "[concat(variables('factoryId'), '/datasets/ds_parquet_output')]"
+            ]
+        }
+    ]
+}
