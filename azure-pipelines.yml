@@ -1,0 +1,169 @@
+# CI/CD de Azure Data Factory: Build/Validate -> Dev -> Test -> Prod
+# Requisitos: ver README.md (service connection, environments con aprobaciones, ADF por entorno)
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+      - README.md
+      - docs/*
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  serviceConnection: 'sc-azure-dataops'      # <-- nombre de su Service Connection
+  subscriptionId: '<SUBSCRIPTION_ID>'        # <-- reemplazar
+  devFactory: 'adf-dataops-dev-aledc'
+  devRg: 'rg-dataops-dev'
+  adfRoot: '$(Build.Repository.LocalPath)/adf'
+  devFactoryId: '/subscriptions/$(subscriptionId)/resourceGroups/$(devRg)/providers/Microsoft.DataFactory/factories/$(devFactory)'
+
+stages:
+  # ---------------- CI ----------------
+  - stage: CI
+    displayName: 'CI - Validar y generar plantilla ARM'
+    jobs:
+      - job: Build
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.11'
+          - script: |
+              pip install pandas pyarrow
+              python tests/validate_csv.py data/ComisionEmpleados_V1_202610.csv
+            displayName: 'Prueba de calidad del CSV'
+
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '18.x'
+            displayName: 'Instalar Node'
+
+          - task: Npm@1
+            inputs:
+              command: 'install'
+              workingDir: '$(Build.Repository.LocalPath)'
+              verbose: true
+            displayName: 'Instalar azure-data-factory-utilities'
+
+          - task: Npm@1
+            inputs:
+              command: 'custom'
+              workingDir: '$(Build.Repository.LocalPath)'
+              customCommand: 'run build validate $(adfRoot) $(devFactoryId)'
+            displayName: 'Validar recursos de ADF'
+
+          - task: Npm@1
+            inputs:
+              command: 'custom'
+              workingDir: '$(Build.Repository.LocalPath)'
+              customCommand: 'run build export $(adfRoot) $(devFactoryId) "ArmTemplate"'
+            displayName: 'Generar plantilla ARM'
+
+          - task: CopyFiles@2
+            inputs:
+              SourceFolder: 'parameters'
+              Contents: '*.json'
+              TargetFolder: '$(Build.Repository.LocalPath)/ArmTemplate/parameters'
+            displayName: 'Incluir parametros por entorno'
+
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: '$(Build.Repository.LocalPath)/ArmTemplate'
+              artifact: 'ArmTemplates'
+              publishLocation: 'pipeline'
+            displayName: 'Publicar artefacto ARM'
+
+  # ---------------- CD: DEV ----------------
+  - stage: Deploy_Dev
+    displayName: 'CD - Desarrollo'
+    dependsOn: CI
+    condition: succeeded()
+    variables:
+      rg: 'rg-dataops-dev'
+    jobs:
+      - deployment: Deploy
+        environment: 'dev'          # sin aprobacion (automatico)
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: ArmTemplates
+                - task: AzureResourceManagerTemplateDeployment@3
+                  inputs:
+                    deploymentScope: 'Resource Group'
+                    azureResourceManagerConnection: '$(serviceConnection)'
+                    subscriptionId: '$(subscriptionId)'
+                    action: 'Create Or Update Resource Group'
+                    resourceGroupName: '$(rg)'
+                    location: 'East US'
+                    templateLocation: 'Linked artifact'
+                    csmFile: '$(Pipeline.Workspace)/ArmTemplates/ARMTemplateForFactory.json'
+                    csmParametersFile: '$(Pipeline.Workspace)/ArmTemplates/ARMTemplateParametersForFactory.json'
+                    overrideParameters: '-factoryName "adf-dataops-dev-aledc"'
+                    deploymentMode: 'Incremental'
+                  displayName: 'Desplegar ADF en DEV'
+
+  # ---------------- CD: TEST ----------------
+  - stage: Deploy_Test
+    displayName: 'CD - Prueba'
+    dependsOn: Deploy_Dev
+    condition: succeeded()
+    variables:
+      rg: 'rg-dataops-test'
+    jobs:
+      - deployment: Deploy
+        environment: 'test'         # aprobacion configurada en Environments
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: ArmTemplates
+                - task: AzureResourceManagerTemplateDeployment@3
+                  inputs:
+                    deploymentScope: 'Resource Group'
+                    azureResourceManagerConnection: '$(serviceConnection)'
+                    subscriptionId: '$(subscriptionId)'
+                    action: 'Create Or Update Resource Group'
+                    resourceGroupName: '$(rg)'
+                    location: 'East US'
+                    templateLocation: 'Linked artifact'
+                    csmFile: '$(Pipeline.Workspace)/ArmTemplates/ARMTemplateForFactory.json'
+                    csmParametersFile: '$(Pipeline.Workspace)/ArmTemplates/ARMTemplateParametersForFactory.json'
+                    overrideParameters: '-factoryName "adf-dataops-test-aledc"'
+                    deploymentMode: 'Incremental'
+                  displayName: 'Desplegar ADF en TEST'
+
+  # ---------------- CD: PROD ----------------
+  - stage: Deploy_Prod
+    displayName: 'CD - Produccion'
+    dependsOn: Deploy_Test
+    condition: succeeded()
+    variables:
+      rg: 'rg-dataops-prod'
+    jobs:
+      - deployment: Deploy
+        environment: 'prod'         # aprobacion manual configurada en Environments
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: ArmTemplates
+                - task: AzureResourceManagerTemplateDeployment@3
+                  inputs:
+                    deploymentScope: 'Resource Group'
+                    azureResourceManagerConnection: '$(serviceConnection)'
+                    subscriptionId: '$(subscriptionId)'
+                    action: 'Create Or Update Resource Group'
+                    resourceGroupName: '$(rg)'
+                    location: 'East US'
+                    templateLocation: 'Linked artifact'
+                    csmFile: '$(Pipeline.Workspace)/ArmTemplates/ARMTemplateForFactory.json'
+                    csmParametersFile: '$(Pipeline.Workspace)/ArmTemplates/ARMTemplateParametersForFactory.json'
+                    overrideParameters: '-factoryName "adf-dataops-prod-aledc"'
+                    deploymentMode: 'Incremental'
+                  displayName: 'Desplegar ADF en PROD'
