@@ -1,0 +1,36 @@
+{
+	"name": "ds_csv_comision",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_DataLake",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "DelimitedText",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"fileName": "ComisionEmpleados_V1_202610.csv",
+				"fileSystem": "input"
+			},
+			"columnDelimiter": ";",
+			"escapeChar": "\\",
+			"firstRowAsHeader": true,
+			"quoteChar": "\""
+		},
+		"schema": [
+			{
+				"name": "empleado_id",
+				"type": "String"
+			},
+			{
+				"name": "Nombre y Apellido",
+				"type": "String"
+			},
+			{
+				"name": "Comisión",
+				"type": "String"
+			}
+		]
+	}
+}

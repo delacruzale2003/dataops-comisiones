@@ -1,0 +1,16 @@
+{
+	"name": "ds_pg_empleado",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_Postgres",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "PostgreSqlV2Table",
+		"schema": [],
+		"typeProperties": {
+			"schema": "rrhh",
+			"table": "empleado"
+		}
+	}
+}
